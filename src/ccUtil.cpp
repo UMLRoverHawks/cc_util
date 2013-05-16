@@ -24,7 +24,7 @@ namespace enc = sensor_msgs::image_encodings;
 
 // to make the programmer's life easier for now
 static const char WINDOW[] = "Color Calibration Utility";
-static const char TOPIC[]  = "/image_raw";
+static const char TOPIC[]  = "/camera1/image_raw";
 static const char PATH[] = "";
 static const int NUM_STDDEVS = 1;
 
