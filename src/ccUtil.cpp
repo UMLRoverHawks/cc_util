@@ -1,4 +1,6 @@
 #include <ros/ros.h>
+#include <sys/types.h>
+#include <sys/stat.h>
 #include <image_transport/image_transport.h>
 #include <cv_bridge/cv_bridge.h>
 #include <sensor_msgs/image_encodings.h>
@@ -24,8 +26,8 @@ namespace enc = sensor_msgs::image_encodings;
 
 // to make the programmer's life easier for now
 static const char WINDOW[] = "Color Calibration Utility";
-static const char TOPIC[]  = "/camera1/image_raw";
-static const char PATH[] = "";
+static const char TOPIC[]  = "/image";
+static const char PATH[] = "/home/csrobot/.calibrations/";
 static const int NUM_STDDEVS = 1;
 
 class CCUtil
@@ -43,7 +45,6 @@ class CCUtil
                             // both colors and allBoxes
   std::string currentCalibrationStr;
   int currentCalibration;
-  // bool sunnyExists, overcastExists, cloudyExists;
   int framesToShowSaveMsg;
 
   public:
@@ -75,14 +76,19 @@ class CCUtil
     box = cv::Rect(-1, -1, 0, 0);
     isDrawingBox = false;
     isPaused     = false;
-    // sunnyExists    = false;
-    // overcastExists = false;
-    // cloudyExists   = false;
     currentCalibrationStr = "sunny";
     currentCalibration    = 0;
     framesToShowSaveMsg = 0;
 
-    printCLI();
+    // make sure the the path we are saving the calibrations to exists
+    struct stat st;
+    if (stat(PATH, &st) != 0)
+    {
+      ROS_ERROR("Directory \"%s\" does not exist, please make it :)", PATH);
+      exit(1);
+    }
+
+    printCLI(); 
   }
 
   ~CCUtil()
@@ -90,17 +96,17 @@ class CCUtil
     cv::destroyWindow(WINDOW);
   }
 
-  //output thresholds as yaml
+  // output thresholds as yaml
   void output_YAML(std::vector<std::vector<std::vector<int> > > &output,
 		    int channel)
   {
-    //get the path from predefined constant
+    // get the path from predefined constant
     std::string path(PATH);
     
-    //cv::FileStorage built-in class
+    // cv::FileStorage built-in class
     cv::FileStorage fs;
 
-    //open the file depending on input
+    // open the file depending on input
     switch(channel)
     {
     case sunny:
@@ -114,7 +120,7 @@ class CCUtil
       break;
     }
 
-    //output 'colors' sequence    
+    // output 'colors' sequence    
     fs << "colors" << "[";
     for (unsigned i = 0; i < output.size(); ++i) 
     {
