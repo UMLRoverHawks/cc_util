@@ -66,7 +66,7 @@ class CCUtil
     allBoxes["ORANGE"] = std::vector<cv::Rect>();
     allBoxes["RED"]    = std::vector<cv::Rect>();
     allBoxes["GREEN"]  = std::vector<cv::Rect>();
-    allBoxes["BLUE"]   = std::vector<cv::Rect>();
+    allBoxes["BLUE"]   = std::vector<cv::Rect>(); 
 
     image_sub = it.subscribe(TOPIC, 1, &CCUtil::imageCb, this);
 
@@ -106,7 +106,23 @@ class CCUtil
   {
     //get the path from predefined constant
     std::string path(PATH);
-    
+   
+    ROS_INFO("These were the colors used:");
+
+    std::map<std::string, std::vector<cv::Rect> >::iterator it;
+    std::vector<std::string> colorsUsed; // the elusive color mapping
+	
+    for (it = allBoxes.begin(); it != allBoxes.end(); ++it)
+    {
+	if( !(it->second).empty() )
+	{	
+		ROS_INFO("color: %s", (it->first).c_str());
+		colorsUsed.push_back(it->first);
+	}
+    }
+
+    ROS_INFO("# colors used= %d # thresholds (+1 if red) = %d", colorsUsed.size(),  output.size()); 
+
     //cv::FileStorage built-in class
     cv::FileStorage fs;
 
@@ -124,13 +140,15 @@ class CCUtil
       break;
     }
 
+    
     //output 'colors' sequence    
     fs << "colors" << "[";
     for (unsigned i = 0; i < output.size(); ++i) 
     {
       fs << "{";
       //added field that contains the names of the color
-      fs << "color" << colorNames[i].c_str() ;
+      //fs << "color" << colorNames[i].c_str() ;
+      fs << "color" << colorsUsed[i].c_str();
 
       // map mins to
       fs << "mins" << "{";
@@ -159,6 +177,7 @@ class CCUtil
   void cvtMapToVec(std::vector<std::vector<cv::Rect> > &output,
 		   std::map<std::string, std::vector<cv::Rect> > &input)
   {
+    ROS_INFO("-----length input: %d", input.size());
     std::map<std::string, std::vector<cv::Rect> >::iterator it;
     for (it = input.begin(); it != input.end(); ++it)
       output.push_back(it -> second);
@@ -354,11 +373,16 @@ class CCUtil
     
     // call findRanges
     findRanges(output, image, recVec);
-   
+  
+    ROS_INFO("num colors %d", _numcolors);
+
+ 
     for (unsigned i = 0; i < _numcolors; ++i)
     {
       // flag for color noexist
       if (output[i][_H][_avg] == -1234) continue;
+
+      //ROS_INFO("%s", boxColors[i].c_str());
       
       std::vector<std::vector<int> > temp_vec;
       std::vector<int> temp_int;
@@ -537,6 +561,7 @@ class CCUtil
       }
       allBoxes[workingColor].push_back(box);
       boxColors.push_back(workingColor);
+      ROS_INFO("working color: %s", workingColor.c_str());
     }
   }
 
