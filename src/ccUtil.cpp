@@ -47,6 +47,7 @@ class CCUtil
   int currentCalibration;
   // bool sunnyExists, overcastExists, cloudyExists;
   int framesToShowSaveMsg;
+  std::map<int, std::string> colorNames ;
 
   public:
   CCUtil()
@@ -128,6 +129,9 @@ class CCUtil
     for (unsigned i = 0; i < output.size(); ++i) 
     {
       fs << "{";
+      //added field that contains the names of the color
+      fs << "color" << colorNames[i].c_str() ;
+
       // map mins to
       fs << "mins" << "{";
       // h s v key value pairs
@@ -336,6 +340,15 @@ class CCUtil
 
     std::vector<std::vector<cv::Rect> > recVec;
     std::vector<std::vector<std::vector<int> > > output_final;
+
+    // create a map that contains the name of the color for each group of squares
+    std::map<std::string, std::vector<cv::Rect> >::iterator it;
+
+    int color_index = 0 ;
+    for ( it = input.begin() ; it != input.end() ; it++ ) {
+      colorNames[color_index] = it->first ;
+      color_index++ ;
+    }
  
     cvtMapToVec(recVec, input);
     
