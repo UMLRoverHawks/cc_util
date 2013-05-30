@@ -28,7 +28,7 @@ namespace enc = sensor_msgs::image_encodings;
 static const char WINDOW[] = "Color Calibration Utility";
 static const char TOPIC[]  = "/camera1/image_raw";
 static const char PATH[] = "/home/csrobot/.calibrations/";
-static const int NUM_STDDEVS = 1;
+static const int NUM_STDDEVS = 2.0;
 
 class CCUtil
 {
@@ -38,6 +38,7 @@ class CCUtil
   cv::Mat currentFrame;
   cv::Rect box;
   bool isDrawingBox, isPaused;
+  std::vector<std::string> colorUsed; // LABELLING FIX: a unique list of all colors selected 
   std::vector<std::string> boxColors; // this is so we can undo
   std::map<std::string, std::vector<cv::Rect> > allBoxes;
   std::map<std::string, cv::Scalar> colors;
@@ -110,18 +111,21 @@ class CCUtil
     ROS_INFO("These were the colors used:");
 
     std::map<std::string, std::vector<cv::Rect> >::iterator it;
-    std::vector<std::string> colorsUsed; // the elusive color mapping
+    //std::vector<std::string> colorUsed; // the elusive color mapping
+    std::vector<std::string>::iterator cuI; // the elusive color mapping
 	
-    for (it = allBoxes.begin(); it != allBoxes.end(); ++it)
+    //for (it = allBoxes.begin(); it != allBoxes.end(); ++it)
+    for (cuI = colorUsed.begin(); cuI != colorUsed.end(); ++cuI)
     {
-	if( !(it->second).empty() )
+	//if( !(it->second).empty() )
 	{	
-		ROS_INFO("color: %s", (it->first).c_str());
-		colorsUsed.push_back(it->first);
+		ROS_INFO("color: %s", (*cuI).c_str());
+		//ROS_INFO("color: %s", (it->first).c_str());
+		//colorUsed.push_back(it->first);
 	}
     }
 
-    ROS_INFO("# colors used= %d # thresholds (+1 if red) = %d", colorsUsed.size(),  output.size()); 
+    ROS_INFO("# colors used= %d # thresholds (+1 if red) = %d", colorUsed.size(),  output.size()); 
 
     //cv::FileStorage built-in class
     cv::FileStorage fs;
@@ -140,6 +144,13 @@ class CCUtil
       break;
     }
 
+    // check output of colors used
+    for (unsigned i = 0; i < output.size(); ++i)
+    {
+	ROS_INFO("%d: min/max hue: %d %d", i, output[i][0][0], output[i][1][0] ); 
+    }
+
+
     
     //output 'colors' sequence    
     fs << "colors" << "[";
@@ -148,7 +159,7 @@ class CCUtil
       fs << "{";
       //added field that contains the names of the color
       //fs << "color" << colorNames[i].c_str() ;
-      fs << "color" << colorsUsed[i].c_str();
+      fs << "color" << colorUsed[i].c_str();
 
       // map mins to
       fs << "mins" << "{";
@@ -177,7 +188,6 @@ class CCUtil
   void cvtMapToVec(std::vector<std::vector<cv::Rect> > &output,
 		   std::map<std::string, std::vector<cv::Rect> > &input)
   {
-    ROS_INFO("-----length input: %d", input.size());
     std::map<std::string, std::vector<cv::Rect> >::iterator it;
     for (it = input.begin(); it != input.end(); ++it)
       output.push_back(it -> second);
@@ -370,13 +380,26 @@ class CCUtil
     }
  
     cvtMapToVec(recVec, input);
-    
+
     // call findRanges
     findRanges(output, image, recVec);
-  
-    ROS_INFO("num colors %d", _numcolors);
-
+    
+    // Unpretty fix to LABELLING issue:
+    std::map<std::string, std::vector<cv::Rect> >::iterator abIt;
+    std::vector<std::string> tmpColors;
  
+    for (abIt = allBoxes.begin(); abIt != allBoxes.end(); ++abIt)
+    {
+        if( !(abIt->second).empty() )
+        {
+                //ROS_INFO("doAll colors used: %s", (abIt->first).c_str());
+                tmpColors.push_back(abIt->first);
+        }
+    }
+
+    std::vector<std::string>::iterator cIt = tmpColors.begin();
+    bool isWrapped = false;
+
     for (unsigned i = 0; i < _numcolors; ++i)
     {
       // flag for color noexist
@@ -422,7 +445,10 @@ class CCUtil
       
         output_final.push_back(temp_vec);
         temp_vec = std::vector<std::vector<int> >();
-        
+     
+        isWrapped = true;
+	//ROS_INFO("h<0 %d", hue_lower);
+
       } else if (hue_upper > 179)
       {
         // loop around, presumably (hue_lower < 0 && hue_upper > 179) == 0
@@ -442,6 +468,10 @@ class CCUtil
 
         output_final.push_back(temp_vec);
         temp_vec = std::vector<std::vector<int> >();
+
+        isWrapped = true;
+	//ROS_INFO("h>179 %d", hue_upper);
+
       } else
       {
         createThresh(temp_vec, temp_int,
@@ -451,9 +481,27 @@ class CCUtil
         output_final.push_back(temp_vec);
         temp_vec = std::vector<std::vector<int> >();
       }
+
+      // push back current color
+      colorUsed.push_back(*cIt);
+      //ROS_INFO("push back: %s", (*cIt).c_str());
+      // if color is wrapped color again (2 threshs, 2 colors) 
+      if(isWrapped)
+      {
+         colorUsed.push_back(*cIt);
+         //ROS_INFO("push back (wrapped): %s", (*cIt).c_str());
+	 isWrapped = false;
+      } 
+     
+      // increment color pointer
+      ++cIt;
     }
     // output_YAML
     output_YAML(output_final, channel); 
+
+    // clear colorUsed vector for next 
+    colorUsed.clear(); 
+
   }
   
   // updates the command line interface in the terminal window
@@ -561,7 +609,7 @@ class CCUtil
       }
       allBoxes[workingColor].push_back(box);
       boxColors.push_back(workingColor);
-      ROS_INFO("working color: %s", workingColor.c_str());
+      //ROS_INFO("working color: %s", workingColor.c_str());
     }
   }
 
